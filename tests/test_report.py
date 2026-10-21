@@ -8,6 +8,8 @@ import pytest
 from era5_check import dashboard, energy, pipeline, plots, validate
 from era5_check.stations import load_stations
 
+MODELS = ["era5", "cerra"]
+
 
 def synthetic_station(row: pd.Series, seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     rng = np.random.default_rng(seed)
@@ -15,12 +17,13 @@ def synthetic_station(row: pd.Series, seed: int) -> tuple[pd.DataFrame, pd.DataF
     n = len(idx)
     era5 = 4.0 * rng.weibull(2.0, n)
     wind = pd.DataFrame({"obs": np.clip(np.round(0.8 * era5 + rng.normal(0, 0.7, n)), 0, None),
-                         "obs_dir": rng.uniform(0, 360, n), "era5": era5, "era5_dir": rng.uniform(0, 360, n)},
-                        index=idx)
+                         "obs_dir": rng.uniform(0, 360, n), "era5": era5, "era5_dir": rng.uniform(0, 360, n),
+                         "cerra": np.clip(0.85 * era5 + rng.normal(0, 0.5, n), 0, None)}, index=idx)
     geo = energy.solar_geometry(idx, row["lat"], row["lon"], row["elev_m"])
     clear = 850.0 * np.cos(np.radians(geo["zenith"].to_numpy())).clip(min=0.0)
     cloud = rng.uniform(0.3, 1.0, n)
     solar = pd.DataFrame({"obs": clear * cloud, "era5": clear * np.clip(cloud * 1.03 + rng.normal(0, 0.05, n), 0, 1.2),
+                          "cerra": clear * np.clip(cloud * 0.99 + rng.normal(0, 0.05, n), 0, 1.2),
                           "temp": 10.0 + 8 * np.sin(np.arange(n) / 8766 * 2 * np.pi), "wind": 3.0}, index=idx)
     for col in ("zenith", "apparent_zenith", "azimuth"):
         solar[col] = geo[col].to_numpy()
@@ -33,11 +36,11 @@ def tables():
     parts, payloads = {}, {}
     for i, (code, row) in enumerate(st.iterrows()):
         wind, solar = synthetic_station(row, i)
-        t = validate.station_tables(int(code), row, wind, solar, ["era5"])
+        t = validate.station_tables(int(code), row, wind, solar, MODELS)
         t["mcp"] = validate.station_mcp(int(code), wind)
         for k, v in t.items():
             parts.setdefault(k, []).append(v)
-        payloads[str(code)] = dashboard.station_payload(wind, solar, ["era5"])
+        payloads[str(code)] = dashboard.station_payload(wind, solar, MODELS)
     out = {k: pd.concat(v, ignore_index=True) for k, v in parts.items()}
     meta = st.reset_index()[["code", "name", "terrain", "elev_m", "sea_km", "lat", "lon"]]
     out["scores"] = meta.merge(out["scores"], on="code")
@@ -47,9 +50,10 @@ def tables():
 
 def test_station_tables_content(tables):
     t, _ = tables
-    wind = t["scores"][t["scores"]["sample"] == "wind"]
+    wind = t["scores"][(t["scores"]["sample"] == "wind") & (t["scores"]["model"] == "era5")]
     assert (wind["rel_bias_pct"] > 15).all()                       # obs = 0.8 ERA5: ERA5 about 25 % high
-    e = t["energy"]
+    assert set(t["scores"]["model"]) == set(MODELS) and len(t["energy"]) == 4
+    e = t["energy"][t["energy"]["model"] == "era5"]
     assert (e["ghi_error_pct"].between(0, 6)).all() and (e["pv_error_pct"] > 0).all()
     assert e["pv_years"].iloc[0] == pytest.approx(2.0, abs=0.01)
     assert set(t["mcp"]["scheme"]) == {"leave_one_year_out", "one_year_campaign"}
@@ -60,7 +64,10 @@ def test_report_outputs(tables, tmp_path):
     t, payloads = tables
     summary = pipeline.headline(t, pipeline.mcp_summary(t["mcp"]))
     assert summary["best_mcp"] in ("Linear regression", "Variance ratio", "Matrix method")
-    e = t["energy"]
+    assert summary["models"] == MODELS and "cerra_tile" in summary
+    assert summary["per_model"]["cerra"]["wind_bias_median_pct"] < summary["per_model"]["era5"]["wind_bias_median_pct"]
+    plots.model_comparison(t, MODELS, tmp_path / "cmp.png")
+    e = t["energy"][t["energy"]["model"] == "era5"]
     for fn, args in ((plots.bias_map, (e,)), (plots.bias_vs_terrain, (e,)), (plots.energy_impact, (e,)),
                      (plots.daily_cycle, (t["cycle"], t["season"], e))):
         assert fn(*args, tmp_path / f"{fn.__name__}.png").stat().st_size > 10_000
@@ -69,5 +76,5 @@ def test_report_outputs(tables, tmp_path):
     html = dashboard.write_dashboard(t, payloads, summary, tmp_path / "index.html").read_text(encoding="utf-8")
     assert "__DATA__" not in html and "Państwowy Instytut Badawczy" in html
     data = json.loads(html.split("const D = ", 1)[1].split(";\n", 1)[0])
-    assert len(data["stations"]) == 2 and "250" in data["payload"]
-    assert data["stations"][0]["r2_wind"] is not None
+    assert len(data["stations"]) == 2 and set(data["payload"]["250"]) == set(MODELS)
+    assert data["stations"][0]["m"]["cerra"]["r2_wind"] is not None

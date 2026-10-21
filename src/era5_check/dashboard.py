@@ -49,26 +49,26 @@ def _records(df: pd.DataFrame, cols: list[str]) -> list[dict]:
 
 def write_dashboard(tables: dict[str, pd.DataFrame], payloads: dict, summary: dict, path: Path) -> Path:
     """Render ``docs/index.html`` from the result tables, the per-station payloads and the headline numbers."""
-    e = tables["energy"][tables["energy"]["model"] == "era5"]
-    sc = tables["scores"][tables["scores"]["model"] == "era5"]
-    wide = sc.pivot(index="code", columns="sample", values=["rel_bias_pct", "rmse", "r2", "bias", "n"])
-    wide.columns = [f"{m}_{s}" for m, s in wide.columns]
-    stations = e.merge(wide.reset_index(), on="code")
-    cols = ["code", "name", "terrain", "elev_m", "sea_km", "lat", "lon", "wind_night_coverage",
-            "wind_speed_error_pct", "wind_energy_error_pct", "ghi_error_pct", "pv_error_pct", "pv_obs_kwh_kwp",
-            "pv_model_kwh_kwp", "pv_years", "wind_cf_obs", "wind_cf_model", "weibull_k_obs", "weibull_k_model",
-            "weibull_a_obs", "weibull_a_model"] + list(wide.columns)
-    def pick(name: str) -> pd.DataFrame:
-        return tables[name][tables[name]["model"] == "era5"]
-
-    m =tables["mcp"][tables["mcp"]["scheme"] == "leave_one_year_out"]
+    base_cols = ["code", "name", "terrain", "elev_m", "sea_km", "lat", "lon", "wind_night_coverage", "pv_years"]
+    model_cols = ["wind_speed_error_pct", "wind_energy_error_pct", "ghi_error_pct", "pv_error_pct", "pv_obs_kwh_kwp",
+                  "pv_model_kwh_kwp", "wind_cf_obs", "wind_cf_model", "weibull_k_obs", "weibull_k_model"]
+    stations: dict[int, dict] = {}
+    for model in summary["models"]:
+        e = tables["energy"][tables["energy"]["model"] == model]
+        sc = tables["scores"][tables["scores"]["model"] == model]
+        wide = sc.pivot(index="code", columns="sample", values=["rel_bias_pct", "rmse", "r2", "bias", "n"])
+        wide.columns = [f"{m}_{s}" for m, s in wide.columns]
+        for rec in _records(e.merge(wide.reset_index(), on="code"), base_cols + model_cols + list(wide.columns)):
+            st = stations.setdefault(rec["code"], {k: rec[k] for k in base_cols} | {"m": {}})
+            st["m"][model] = {k: v for k, v in rec.items() if k not in base_cols}
+    m = tables["mcp"][tables["mcp"]["scheme"] == "leave_one_year_out"]
     data = {
-        "stations": _records(stations, cols),
-        "cycle": _records(pick("cycle"), ["code", "sample", "hour_utc", "bias"]),
-        "season": _records(pick("season"), ["code", "sample", "month", "rel_bias_pct"]),
-        "dist": _records(pick("wind_dist"), ["code", "speed", "freq_obs", "freq_model"]),
+        "stations": list(stations.values()),
+        "cycle": _records(tables["cycle"], ["code", "model", "sample", "hour_utc", "bias"]),
+        "season": _records(tables["season"], ["code", "model", "sample", "month", "rel_bias_pct"]),
+        "dist": _records(tables["wind_dist"], ["code", "model", "speed", "freq_obs", "freq_model"]),
         "mcp": _records(m, ["code", "test", "method", "energy_error_pct", "speed_error_pct", "wasserstein_ms"]),
-        "payload": {str(k): v["era5"] for k, v in payloads.items()},
+        "payload": {str(k): v for k, v in payloads.items()},
         "summary": summary,
     }
     template = resources.files("era5_check").joinpath("data", "dashboard_template.html").read_text(encoding="utf-8")

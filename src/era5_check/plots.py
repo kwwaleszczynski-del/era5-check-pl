@@ -280,3 +280,55 @@ def example_station(payload: dict, name: str, path: Path) -> Path:
     ax.set_title(f"{name}: daily irradiation")
     fig.tight_layout()
     return _save(fig, path)
+
+
+MODEL_LABEL = {"era5": "ERA5 (0.25 deg)", "cerra": "CERRA (5.5 km)"}
+MODEL_COLOR = {"era5": BLUE, "cerra": ORANGE}
+
+
+def model_comparison(tables: dict[str, pd.DataFrame], models: list[str], path: Path) -> Path:
+    """Per-station bias of each reanalysis for wind and GHI, wind R2, and the GHI daily cycle."""
+    e = tables["energy"]
+    wide = e.pivot(index="code", columns="model", values=["wind_speed_error_pct", "ghi_error_pct"])
+    names = e.drop_duplicates("code").set_index("code")["name"]
+    fig, axes = plt.subplots(2, 2, figsize=(10.5, 9.0), gridspec_kw={"height_ratios": [1.5, 1.0]})
+    for ax, col, title in ((axes[0, 0], "wind_speed_error_pct", "Wind speed bias at 10 m [%]"),
+                           (axes[0, 1], "ghi_error_pct", "GHI bias, annual sum [%]")):
+        d = wide[col].sort_values(models[0])
+        y = np.arange(len(d))
+        ax.hlines(y, d.min(axis=1), d.max(axis=1), color=GRID, linewidth=2.5, zorder=1)
+        for m, marker in zip(models, ("o", "D")):
+            ax.scatter(d[m], y, color=MODEL_COLOR[m], marker=marker, s=36, edgecolor=SURFACE, linewidth=1.2,
+                       label=MODEL_LABEL[m], zorder=3)
+        ax.axvline(0, color=INK2, linewidth=1)
+        ax.set_yticks(y, [names[c] for c in d.index], fontsize=8)
+        ax.grid(axis="y", visible=False)
+        ax.set_title(title)
+    axes[0, 0].legend(fontsize=8, loc="lower right")
+    sc = tables["scores"]
+    r2 = sc[sc["sample"] == "wind"].pivot(index="code", columns="model", values="r2")
+    terrain = e.drop_duplicates("code").set_index("code")["terrain"]
+    ax = axes[1, 0]
+    for t in TERRAIN_ORDER:
+        idx = terrain[terrain == t].index
+        ax.scatter(r2.loc[idx, models[0]], r2.loc[idx, models[1]], marker=TERRAIN_MARKER[t], s=40, color=INK2,
+                   edgecolor=SURFACE, linewidth=1.2, label=t, zorder=3)
+    ax.plot([0, 1], [0, 1], color=INK2, linewidth=1, linestyle="--")
+    ax.set_xlim(0.1, 0.8)
+    ax.set_ylim(0.1, 0.8)
+    ax.set_xlabel(f"{MODEL_LABEL[models[0]]} hourly wind R2")
+    ax.set_ylabel(f"{MODEL_LABEL[models[1]]} hourly wind R2")
+    ax.set_title("Hourly wind R2 per station")
+    ax.legend(fontsize=8, loc="lower right")
+    ax = axes[1, 1]
+    cyc = tables["cycle"][tables["cycle"]["sample"] == "ghi_hourly"]
+    for m in models:
+        piv = cyc[cyc["model"] == m].pivot(index="hour_utc", columns="code", values="bias")
+        piv = piv[piv.notna().sum(axis=1) >= 10]
+        ax.plot(piv.index, piv.median(axis=1), color=MODEL_COLOR[m], label=MODEL_LABEL[m], marker="o", markersize=3.5)
+    ax.axhline(0, color=INK2, linewidth=1)
+    ax.set_xlabel("hour (UTC)")
+    ax.set_title("GHI bias by hour, median station [W/m2]")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    return _save(fig, path)

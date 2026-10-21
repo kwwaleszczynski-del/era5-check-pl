@@ -70,6 +70,16 @@ def test_fetch_point_retries_after_429(tmp_path, monkeypatch):
     assert 65.0 in slept and len(session.calls) == 2
 
 
+def test_fetch_point_stops_at_daily_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(openmeteo.time, "sleep", lambda s: None)
+    session = FakeSession([FakeResponse(429, {"reason": "Daily API request limit exceeded"})])
+    with pytest.raises(RuntimeError, match="reset"):
+        openmeteo.fetch_point(53.0, 18.6, "cerra", ["wind_speed_10m"], date(2010, 1, 1), date(2010, 1, 1),
+                              cache_dir=tmp_path, key="s4", session=session)
+    assert len(session.calls) == 1
+    assert openmeteo.Ledger(tmp_path / "openmeteo_ledger.json").entries == []
+
+
 def test_fetch_point_refuses_over_budget(tmp_path):
     with pytest.raises(RuntimeError, match="budget"):
         openmeteo.fetch_point(53.0, 18.6, "era5", ["wind_speed_10m"] * 3, date(2010, 1, 1), date(2015, 12, 31),

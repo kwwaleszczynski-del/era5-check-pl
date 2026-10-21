@@ -9,7 +9,8 @@ This repository checks it on public measurements:
 
 - **19 IMGW-PIB stations** that report both hourly synoptic observations (10 m wind, temperature) and hourly
   **global radiation** (the actinometric network), 2010-2015, from the coast to the Tatra summits,
-- **hourly ERA5** at each station point (Open-Meteo archive API),
+- **hourly ERA5** at each station point (Open-Meteo archive API), and for comparison **CERRA**, the 5.5 km
+  Copernicus regional reanalysis for Europe,
 - **error scores** per station, by hour of day and by month, against terrain and distance to the sea,
 - the **energy impact**: wind speed error through a Senvion MM92 power curve, irradiance error through a pvlib
   PV model,
@@ -31,6 +32,7 @@ measurements, and redoes it here on public data only.
 | Hourly R² (median) | 0.61 (17 stations below 1,000 m) | 0.82 (sun above 5°); daily sums 0.93 |
 | Energy impact | median elasticity 1.5: +10 % speed is about +15 % energy at a 7 m/s hub mean | PV yield error 1.1 times the GHI error; up to +13 % |
 | Best long-term correction | matrix method: mean absolute energy error **5.4 %** (raw ERA5 40.8 %) | - |
+| CERRA instead of ERA5 | median absolute bias 9.6 % instead of 14.1 %, higher R² at 15 of 19 stations | median absolute bias 5.6 % instead of 3.4 %, winter irradiance 19-23 % too low |
 
 - **The 10 m wind bias belongs to the station, not to the region.** Neighbouring lowland stations range from
   -14 % (Koło, open site) to +54 % (Piła). There is no significant rank correlation with elevation
@@ -51,6 +53,12 @@ measurements, and redoes it here on public data only.
   method reproduces the conditional distribution (0.14 m/s) and gives the smallest energy error at 15 of 19
   stations. The remaining 5 % comes mostly from changes at the stations: at Toruń the raw ERA5 bias grows from
   +37 % in 2010 to +56 % in 2015, at Piła from +46 % to +66 %.
+- **A finer regional reanalysis helps the wind, not the sun.** CERRA (5.5 km) correlates better with the station
+  wind at 15 of 19 stations and follows Kasprowy Wierch far better (R² 0.63 instead of 0.20, bias -51 % instead of
+  -68 %), but its median absolute wind bias is still 9.6 %: a 5.5 km grid does not see an anemometer's shelter
+  either. For irradiance
+  CERRA is worse than ERA5, mostly because it is far too dark in winter (median -19 % in January, -23 % in
+  December).
 - **At hub height ERA5 overestimates too.** At Kelmarsh (flat English Midlands) ERA5 interpolated to 78.5 m is
   10 % faster than the nacelle anemometers (R² 0.87) and would overstate energy by 24 %; taking the 100 m value
   as it is would overstate it by 37 %.
@@ -118,6 +126,26 @@ distribution is narrower than the measured one (Weibull k 2.0-2.3 against 1.5-1.
 114 folds: 19 stations by 6 held-out years. A one-year campaign (train on one year, predict the other five) gives
 almost the same ranking: 7.4 / 6.8 / 5.4 % (`results/mcp_summary.csv`).
 
+### ERA5 against CERRA
+
+![ERA5 against CERRA](docs/img/era5_vs_cerra.png)
+
+| Station median (17 below 1,000 m for wind, 19 for GHI) | ERA5 (0.25°) | CERRA (5.5 km) |
+|---|---|---|
+| Wind speed bias / absolute bias | +8.5 % / 14.1 % | +4.6 % / 9.6 % |
+| Wind speed bias range, coast and lowland | -14 % to +54 % | -13 % to +44 % |
+| Wind speed bias, Śnieżka / Kasprowy Wierch | -74 % / -68 % | -72 % / -51 % |
+| Hourly wind R² | 0.61 | 0.64 |
+| Absolute wind energy error | 24 % | 18 % |
+| GHI annual bias / absolute bias | +2.2 % / 3.4 % | -2.0 % / 5.6 % |
+| GHI annual bias range | -4.4 % to +10.2 % | -9.6 % to +10.7 % |
+| Daily GHI bias, January / December | +7.6 % / +1.0 % | -19.2 % / -23.4 % |
+| GHI R², hourly / daily | 0.82 / 0.93 | 0.81 / 0.93 |
+| Absolute PV yield error | 3.7 % | 6.0 % |
+
+CERRA's radiation is too low in the morning and the late afternoon and slightly high around noon, so it loses
+most in winter, when the whole day is low sun. Both reanalyses use the same pairing, sample and energy models.
+
 ### Hub height: Kelmarsh
 
 ![Kelmarsh](docs/img/kelmarsh.png)
@@ -133,19 +161,22 @@ almost the same ranking: 7.4 / 6.8 / 5.4 % (`results/mcp_summary.csv`).
 | [IMGW-PIB public data](https://danepubliczne.imgw.pl), `dane_meteorologiczne/terminowe/synop` | hourly synoptic reports: 10 m wind speed (10-minute mean, whole m/s), direction, air temperature | 2010-2015 | public data, attribution required |
 | IMGW-PIB public data, `dane_aktynometryczne` (verified records) | hourly global radiation [J/cm²], true solar time | 2010-2015 | public data, attribution required |
 | [ERA5 via Open-Meteo](https://open-meteo.com/en/docs/historical-weather-api) | hourly 10 m wind speed and direction, shortwave radiation (mean of the preceding hour) at the station point (nearest 0.25° cell) | 2010-2015 | CC BY 4.0 |
+| CERRA via Open-Meteo | hourly 10 m wind speed and shortwave radiation, same conventions, nearest 5.5 km cell; available on Open-Meteo until 30 June 2021 | 2010-2015 | CC BY 4.0 |
 | [Kelmarsh wind farm data](https://doi.org/10.5281/zenodo.16807551), optional | 10-minute SCADA of six Senvion MM92 turbines; also the source of the power curve | 2016-2021 | CC BY 4.0 |
 | [Natural Earth](https://www.naturalearthdata.com) | Poland outline for the map | - | public domain |
 
 The 19 stations are all the IMGW sites with both a synoptic station and a verified hourly radiation record in
 the period. Coordinates and elevations come from IMGW's radiation inventory; the synoptic site is the same within
 1 km (Kołobrzeg's synoptic station moved 13 km west only in 2018). Download sizes: 37.5 MB of synoptic files and
-11.2 MB of radiation files; the ERA5 requests weigh about 1,500 Open-Meteo calls in total. Everything is cached
+11.2 MB of radiation files; the reanalysis requests weigh about 2,100 Open-Meteo calls in total (ERA5 1,500,
+CERRA 600). Everything is cached
 in `data/`, which is not part of the repository.
 
 ## Method
 
-**Pairing and time.** Synoptic wind is a 10-minute mean ending at the full UTC hour; ERA5 wind is instantaneous at
-the hour, so both are compared at the same stamp. Radiation records are hourly sums in true solar time, stamped at
+**Pairing and time.** Synoptic wind is a 10-minute mean ending at the full UTC hour; reanalysis wind is
+instantaneous at the hour, so both are compared at the same stamp, and reanalysis radiation (mean of the preceding
+hour) is moved to the start of its hour. Radiation records are hourly sums in true solar time, stamped at
 the end of the hour; each solar hour is moved to UTC with the station longitude $`\lambda`$ and the equation of
 time $`E`$ (Spencer, 1971) and its energy is split over the two UTC hours it overlaps:
 
@@ -224,10 +255,15 @@ hourly shear exponent $`\alpha = \ln(v_{100}/v_{10}) / \ln 10`$.
   to changes in exposure or instruments. They are part of the MCP error here, as they would be for a real mast.
 - **Timing.** The radiation records and ERA5 agree best with a 15-minute offset (see above); hourly GHI scores
   carry that, daily and annual sums do not.
-- **ERA5-Land is not in the comparison.** The Open-Meteo archive serves ERA5-Land only for temperature, humidity,
-  snow and soil variables; wind and radiation come back empty. In ERA5-Land these fields are largely the ERA5
-  atmospheric forcing interpolated to 0.1° (Muñoz-Sabater et al., 2021), so the finer grid would add less than it
-  suggests for wind and irradiance.
+- **ERA5-Land is not in the comparison.** For wind and radiation ERA5-Land carries the ERA5 atmospheric forcing
+  interpolated to 0.1° (Muñoz-Sabater et al., 2021), so comparing it would add little; the Open-Meteo archive
+  serves ERA5-Land only for temperature, humidity, snow and soil variables anyway. CERRA, a reanalysis with its own
+  5.5 km model and data assimilation, is the higher-resolution comparison instead.
+- **CERRA as delivered.** The CERRA series come from Open-Meteo's hourly archive; how much of the low-sun
+  radiation deficit is CERRA itself and how much the conversion of its forecast fields to hourly values was not
+  separated here. Daily sums are the safer comparison.
+- **Not fully independent.** Both reanalyses assimilate synoptic reports (CERRA more of them than ERA5), so the
+  station data are not a perfectly independent check.
 - **Nearest cell.** ERA5 is taken at the nearest 0.25° grid cell, without interpolation or elevation correction.
 - **Not a yield assessment.** The PV and wind models are deliberately simple and identical on both sides; they
   show how a weather error propagates, not what a real plant would produce.
@@ -237,7 +273,7 @@ hourly shear exponent $`\alpha = \ln(v_{100}/v_{10}) / \ln 10`$.
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]"      # Linux/macOS: .venv/bin/python
-python -m era5_check fetch        # IMGW files (49 MB) and ERA5 point series (about 1,500 Open-Meteo calls)
+python -m era5_check fetch        # IMGW files (49 MB), ERA5 and CERRA point series (about 2,100 Open-Meteo calls)
 python -m era5_check validate     # results/*.csv, about 2 minutes
 python -m era5_check report       # docs/img/*.png, docs/index.html, results/summary.json
 pytest -q                         # offline tests on synthetic data
@@ -247,12 +283,13 @@ The hub-height check needs the Kelmarsh Parquet cache built by
 [wind-power-curve-kelmarsh](https://github.com/kwwaleszczynski-del/wind-power-curve-kelmarsh); point
 `KELMARSH_DATA_DIR` at its `data` folder (default: `../wind-power-curve-kelmarsh/data`). Without it the step is
 skipped. Open-Meteo requests are logged in `data/openmeteo/openmeteo_ledger.json` and refused above
-`--max-weight` calls per 24 hours (default 2,000), because the free tier limit is shared per IP address.
+`--max-weight` calls per 24 hours (default 2,000; the first full download needs `--max-weight 2200`), because
+the free tier limit is shared per IP address.
 
 ```
 src/era5_check/
   imgw.py        IMGW download (cached) and parsers: synoptic CSV, radiation DAN files, solar time to UTC
-  openmeteo.py   ERA5 point series with cache, request ledger, pacing and 429 back-off
+  openmeteo.py   ERA5 / CERRA point series with cache, request ledger, pacing, wait-for-reset on HTTP 429
   stations.py    station table, distance to the Baltic coast
   dataset.py     paired hourly frames per station, radiation quality control
   metrics.py     bias, RMSE, MAE, R², Weibull fit
@@ -274,6 +311,11 @@ src/era5_check/
   Climate Change Service information 2026; contains modified Copernicus Climate Change Service information.
   Neither the European Commission nor ECMWF is responsible for any use that may be made of the Copernicus
   information or data it contains.
+- **CERRA.** Schimanke, S. et al. (2021): CERRA sub-daily regional reanalysis data for Europe on single levels from
+  1984 to present. Copernicus Climate Change Service (C3S) Climate Data Store, doi:10.24381/cds.622a565a. Accessed
+  through the Open-Meteo Historical Weather API, CC BY 4.0. Contains modified Copernicus Climate Change Service
+  information; neither the European Commission nor ECMWF is responsible for any use that may be made of the
+  Copernicus information or data it contains.
 - **Kelmarsh.** Plumley, C., Takeuchi, R.: Kelmarsh wind farm data, Cubico Sustainable Investments,
   doi:10.5281/zenodo.16807551, CC BY 4.0.
 - Muñoz-Sabater, J. et al. (2021): ERA5-Land: a state-of-the-art global reanalysis dataset for land applications.

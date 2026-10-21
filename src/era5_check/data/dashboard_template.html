@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ERA5 Check Poland</title>
-<meta name="description" content="How well the ERA5 reanalysis reproduces wind and solar radiation at 19 IMGW-PIB stations in Poland, and what the error means for energy estimates.">
+<meta name="description" content="How well the ERA5 and CERRA reanalyses reproduce wind and solar radiation at 19 IMGW-PIB stations in Poland, and what the error means for energy estimates.">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" integrity="sha384-cCVCZkAjYNxaYKbM8lsArLznDF/SvMFr1jcZrvOpSTCa0W40ZAdLzHCEulnUa5i7" crossorigin="anonymous"></script>
 <style>
 :root {
@@ -12,6 +12,7 @@
   --surface-0: #f5f4f1; --surface-1: #fcfcfb; --border: #e4e3df;
   --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #6f6e69;
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #8a8983;
+  --mcp-linear: #6250d6; --mcp-variance: #eda100; --mcp-matrix: #e87ba4;
   --div-neg: #184f95; --div-mid: #e4e3df; --div-pos: #b42323; --grid: #e4e3df; --seq-low: #cde2fb;
 }
 @media (prefers-color-scheme: dark) {
@@ -20,6 +21,7 @@
     --surface-0: #121211; --surface-1: #1a1a19; --border: #383835;
     --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
     --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #9a998f;
+    --mcp-linear: #9085e9; --mcp-variance: #c98500; --mcp-matrix: #d55181;
     --div-neg: #5598e7; --div-mid: #4a4a46; --div-pos: #e66767; --grid: #2c2c2a; --seq-low: #1f3550;
   }
 }
@@ -28,6 +30,7 @@
   --surface-0: #121211; --surface-1: #1a1a19; --border: #383835;
   --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #9a998f;
   --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #9a998f;
+  --mcp-linear: #9085e9; --mcp-variance: #c98500; --mcp-matrix: #d55181;
   --div-neg: #5598e7; --div-mid: #4a4a46; --div-pos: #e66767; --grid: #2c2c2a; --seq-low: #1f3550;
 }
 * { box-sizing: border-box; }
@@ -67,60 +70,67 @@ a { color: var(--series-1); }
 <body>
 <main>
 <h1>How good is ERA5 in Poland?</h1>
-<p class="lead">Hourly ERA5 reanalysis at 19 IMGW-PIB stations, 2010-2015: 10 m wind speed against synoptic
-observations, global horizontal irradiance against the actinometric network, what the errors do to wind and PV
-energy estimates, and which long-term correction (MCP) repairs them best.</p>
+<p class="lead">Hourly ERA5 and CERRA reanalyses at 19 IMGW-PIB stations, 2010-2015: 10 m wind speed against
+synoptic observations, global horizontal irradiance against the actinometric network, what the errors do to wind
+and PV energy estimates, and which long-term correction (MCP) repairs them best.</p>
 <div class="tiles" id="tiles"></div>
 
 <h2>Station map</h2>
 <div class="controls">
+  <label>Reanalysis <select id="model"></select></label>
   <label>Colour by <select id="metric"></select></label>
   <label>Station <select id="station"></select></label>
 </div>
 <div class="card"><div id="map" class="chart"></div>
-<div class="note">Red: ERA5 above the measurement, blue: below (R2 maps: darker is better). Click a station for its charts.</div></div>
+<div class="note">Red: reanalysis above the measurement, blue: below (R2 maps: darker is better). Click a station for its charts.</div></div>
 
 <h2 id="st-title">Station</h2>
 <div class="facts" id="st-facts"></div>
 <div class="grid2">
-  <div class="card"><h3>Hourly wind speed, station vs ERA5 (hours per cell, log colour)</h3><div id="c-heat" class="chart"></div></div>
-  <div class="card"><h3>Wind speed distribution (both in whole m/s)</h3><div id="c-dist" class="chart"></div></div>
+  <div class="card"><h3 id="h-heat">Hourly wind speed, station vs reanalysis</h3><div id="c-heat" class="chart"></div></div>
+  <div class="card"><h3>Wind speed distribution (all in whole m/s)</h3><div id="c-dist" class="chart"></div></div>
   <div class="card"><h3>Wind speed bias by hour of day [m/s]</h3><div id="c-wcyc" class="chart"></div></div>
   <div class="card"><h3>GHI bias by hour of day, sun above 5 deg [W/m2]</h3><div id="c-gcyc" class="chart"></div></div>
-  <div class="card"><h3>Bias by month [%]</h3><div id="c-month" class="chart"></div></div>
-  <div class="card"><h3>Daily irradiation, station vs ERA5 [kWh/m2]</h3><div id="c-ghi" class="chart"></div></div>
-  <div class="card"><h3>MCP, leave-one-year-out: energy error of each held-out year [%]</h3><div id="c-mcp" class="chart"></div></div>
-  <div class="card"><h3>Scores</h3><div class="tablewrap"><table id="st-table"></table></div></div>
+  <div class="card"><h3>Wind speed bias by month [%]</h3><div id="c-wmon" class="chart"></div></div>
+  <div class="card"><h3>Daily GHI bias by month [%]</h3><div id="c-gmon" class="chart"></div></div>
+  <div class="card"><h3 id="h-ghi">Daily irradiation, station vs reanalysis [kWh/m2]</h3><div id="c-ghi" class="chart"></div></div>
+  <div class="card"><h3 id="h-scores">Scores</h3><div class="tablewrap"><table id="st-table"></table></div></div>
+  <div class="card"><h3>MCP with ERA5 as reference, leave-one-year-out: energy error of each held-out year [%]</h3><div id="c-mcp" class="chart"></div></div>
 </div>
 
 <h2>All stations</h2>
 <div class="card tablewrap"><table id="all"></table>
-<div class="note">Wind energy error: MM92 power curve with both series scaled so that the measured mean is 7 m/s.
-PV: 30 deg south, same temperature and wind, only the irradiance differs. Click a column to sort, a row to select.</div></div>
+<div class="note">Values for the reanalysis selected above. Wind energy error: MM92 power curve with both series scaled so
+that the measured mean is 7 m/s. PV: 30 deg south, same temperature and wind, only the irradiance differs. Click a
+column to sort, a row to select.</div></div>
 
 <footer>
 Data: Instytut Meteorologii i Gospodarki Wodnej - Państwowy Instytut Badawczy. "Źródłem pochodzenia danych jest
 Instytut Meteorologii i Gospodarki Wodnej - Państwowy Instytut Badawczy." The data were processed (quality control,
-conversion from solar to UTC time, pairing and aggregation). ERA5 via the Open-Meteo Historical Weather API (CC BY
-4.0): Hersbach et al. (2023), ERA5 hourly data on single levels from 1940 to present, Copernicus Climate Change
-Service (C3S) Climate Data Store, doi:10.24381/cds.adbb2d47. Contains modified Copernicus Climate Change Service
-information; neither the European Commission nor ECMWF is responsible for any use that may be made of it. Power
-curve: Kelmarsh wind farm data, doi:10.5281/zenodo.16807551 (CC BY 4.0). Map outline: Natural Earth. Code:
-<a href="https://github.com/kwwaleszczynski-del/era5-check-pl">era5-check-pl</a> (MIT).
+conversion from solar to UTC time, pairing and aggregation). Reanalyses via the Open-Meteo Historical Weather API
+(CC BY 4.0): ERA5, Hersbach et al. (2023), doi:10.24381/cds.adbb2d47, and CERRA, Schimanke et al. (2021),
+doi:10.24381/cds.622a565a, both from the Copernicus Climate Change Service (C3S) Climate Data Store. Contains
+modified Copernicus Climate Change Service information; neither the European Commission nor ECMWF is responsible
+for any use that may be made of it. Power curve: Kelmarsh wind farm data, doi:10.5281/zenodo.16807551 (CC BY 4.0).
+Map outline: Natural Earth. Code: <a href="https://github.com/kwwaleszczynski-del/era5-check-pl">era5-check-pl</a> (MIT).
 </footer>
 </main>
 <script>
 const D = __DATA__;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const byCode = Object.fromEntries(D.stations.map(s => [s.code, s]));
+const MODELS = D.summary.models;
+const MLABEL = {era5: "ERA5", cerra: "CERRA"};
+const MCOLOR = {era5: "--series-2", cerra: "--series-3"};
 const METRICS = {
   wind_speed_error_pct: ["Wind speed bias [%]", 75], wind_energy_error_pct: ["Wind energy error [%]", 100],
   ghi_error_pct: ["GHI annual bias [%]", 12], pv_error_pct: ["PV yield error [%]", 12],
   r2_wind: ["Wind R2 (hourly)", null], r2_ghi_daily: ["GHI R2 (daily)", null]
 };
 const fmt = (v, d = 1, sign = false) => v == null ? "-" : (sign && v > 0 ? "+" : "") + v.toFixed(d);
-let current = D.stations[0].code;
+let current = D.stations[0].code, model = MODELS[0];
 const CFG = {displayModeBar: false, responsive: true, scrollZoom: false};
+const val = (s, k) => (s.m[model] || {})[k];
 
 function axis(title, extra = {}) {
   return Object.assign({title: {text: title, font: {size: 12}}, gridcolor: css("--grid"), zerolinecolor: css("--text-muted"),
@@ -140,10 +150,11 @@ function tiles() {
   const s = D.summary;
   const items = [
     [s.wind_bias_range, "ERA5 10 m wind speed bias at lowland and coastal stations (min to max)"],
-    [s.summit_bias, "wind speed bias on the two mountain summits"],
+    [s.summit_bias, "ERA5 wind speed bias on the two mountain summits"],
     [s.ghi_bias_median, "median ERA5 bias of annual GHI, stations " + s.ghi_bias_range],
     [s.best_mcp, "best long-term correction: mean absolute energy error " + s.best_mcp_error]
   ];
+  if (s.cerra_tile) items.push([s.cerra_tile, "CERRA median absolute bias, wind / GHI (ERA5: " + s.cerra_tile_ref + ")"]);
   document.getElementById("tiles").innerHTML =
     items.map(([v, l]) => `<div class="tile"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
 }
@@ -155,11 +166,11 @@ function drawMap() {
                           : [[0, css("--div-mid")], [1, css("--series-1")]];
   const trace = {
     type: "scattergeo", lon: D.stations.map(s => s.lon), lat: D.stations.map(s => s.lat),
-    text: D.stations.map(s => `${s.name} (${s.terrain}, ${s.elev_m} m)<br>${label}: ${fmt(s[key], diverging ? 1 : 2, diverging)}`),
+    text: D.stations.map(s => `${s.name} (${s.terrain}, ${s.elev_m} m)<br>${MLABEL[model]} ${label}: ${fmt(val(s, key), diverging ? 1 : 2, diverging)}`),
     hoverinfo: "text", customdata: D.stations.map(s => s.code), mode: "markers+text",
     textposition: "top center", textfont: {size: 10, color: css("--text-secondary")},
-    texttemplate: D.stations.map(s => fmt(s[key], diverging ? 0 : 2, diverging)),
-    marker: {size: D.stations.map(s => s.code === current ? 18 : 13), color: D.stations.map(s => s[key]),
+    texttemplate: D.stations.map(s => fmt(val(s, key), diverging ? 0 : 2, diverging)),
+    marker: {size: D.stations.map(s => s.code === current ? 18 : 13), color: D.stations.map(s => val(s, key)),
              colorscale: scale, cmin: diverging ? -lim : 0, cmax: diverging ? lim : 1,
              line: {color: D.stations.map(s => s.code === current ? css("--text-primary") : css("--surface-1")), width: 2},
              colorbar: {thickness: 10, len: 0.8, tickfont: {color: css("--text-secondary")}, outlinewidth: 0}}
@@ -173,10 +184,13 @@ function drawMap() {
 }
 
 function drawStation() {
-  const s = byCode[current], p = D.payload[current];
-  const b = css("--series-1"), o = css("--series-2"), muted = css("--text-muted");
+  const s = byCode[current], p = D.payload[current][model], ms = s.m[model];
+  const b = css("--series-1"), mc = css(MCOLOR[model]), muted = css("--text-muted");
   document.getElementById("station").value = current;
   document.getElementById("st-title").textContent = s.name;
+  document.getElementById("h-heat").textContent = `Hourly wind speed, station vs ${MLABEL[model]} (hours per cell, log colour)`;
+  document.getElementById("h-ghi").textContent = `Daily irradiation, station vs ${MLABEL[model]} [kWh/m2]`;
+  document.getElementById("h-scores").textContent = `Scores, ${MLABEL[model]}`;
   const dayOnly = s.wind_night_coverage < 0.5 ? " Synoptic reports in daytime only in most years: wind scores cover day hours." : "";
   document.getElementById("st-facts").textContent =
     `${s.terrain}, ${s.elev_m} m a.s.l., ${s.sea_km.toFixed(0)} km from the Baltic; radiation record ${s.pv_years.toFixed(1)} complete years.` + dayOnly;
@@ -184,53 +198,57 @@ function drawStation() {
   Plotly.react("c-heat", [
     {type: "heatmap", x: p.wind_obs, y: p.wind_model, z: p.wind_counts.map(r => r.map(v => v ? Math.log10(v) : null)),
      customdata: p.wind_counts, colorscale: [[0, css("--seq-low")], [1, b]], showscale: false,
-     hovertemplate: "station %{x} m/s<br>ERA5 %{y} m/s<br>%{customdata} hours<extra></extra>"},
+     hovertemplate: "station %{x} m/s<br>" + MLABEL[model] + " %{y} m/s<br>%{customdata} hours<extra></extra>"},
     {x: [0, top], y: [0, top], mode: "lines", line: {color: muted, dash: "dash", width: 1}, hoverinfo: "skip", name: "1:1"}],
-    base({showlegend: false, xaxis: axis("station [m/s]", {range: [-0.5, maxObs + 0.5]}), yaxis: axis("ERA5 [m/s]", {range: [0, maxMod]})}), CFG);
-  const dist = D.dist.filter(r => r.code === current && (r.freq_obs > 0.0005 || r.freq_model > 0.0005));
+    base({showlegend: false, xaxis: axis("station [m/s]", {range: [-0.5, maxObs + 0.5]}),
+          yaxis: axis(MLABEL[model] + " [m/s]", {range: [0, maxMod]})}), CFG);
+  const dist = m => D.dist.filter(r => r.code === current && r.model === m && (r.freq_obs > 0.0005 || r.freq_model > 0.0005));
+  const d0 = dist(MODELS[0]);
   Plotly.react("c-dist", [
-    {type: "bar", x: dist.map(r => r.speed), y: dist.map(r => 100 * r.freq_obs), name: "station", marker: {color: b},
-     hovertemplate: "%{x} m/s: %{y:.1f} %<extra>station</extra>"},
-    {type: "bar", x: dist.map(r => r.speed), y: dist.map(r => 100 * r.freq_model), name: "ERA5", marker: {color: o},
-     hovertemplate: "%{x} m/s: %{y:.1f} %<extra>ERA5</extra>"}],
-    base({bargap: 0.25, bargroupgap: 0.08, xaxis: axis("wind speed [m/s]"), yaxis: axis("share of hours [%]")}), CFG);
-  const cyc = smp => D.cycle.filter(r => r.code === current && r.sample === smp);
-  const line = (rows, color) => ({x: rows.map(r => r.hour_utc), y: rows.map(r => r.bias), mode: "lines+markers",
-    line: {color, width: 2}, marker: {size: 7, color, line: {color: css("--surface-1"), width: 1.5}},
-    hovertemplate: "%{x}:00 UTC: %{y:.2f}<extra></extra>"});
-  Plotly.react("c-wcyc", [line(cyc("wind"), b)], base({showlegend: false,
-    xaxis: axis("hour (UTC)", {dtick: 3}), yaxis: axis("ERA5 - station [m/s]")}), CFG);
-  Plotly.react("c-gcyc", [line(cyc("ghi_hourly"), o)], base({showlegend: false,
-    xaxis: axis("hour (UTC)", {dtick: 3}), yaxis: axis("ERA5 - station [W/m2]")}), CFG);
-  const mon = smp => D.season.filter(r => r.code === current && r.sample === smp);
-  const ml = (rows, color, name) => ({x: rows.map(r => r.month), y: rows.map(r => r.rel_bias_pct), mode: "lines+markers", name,
-    line: {color, width: 2}, marker: {size: 7, color, line: {color: css("--surface-1"), width: 1.5}},
-    hovertemplate: "month %{x}: %{y:+.1f} %<extra>" + name + "</extra>"});
-  Plotly.react("c-month", [ml(mon("wind"), b, "wind speed"), ml(mon("ghi_daily"), o, "daily GHI")],
-    base({xaxis: axis("month", {dtick: 1}), yaxis: axis("ERA5 vs station [%]")}), CFG);
+    {type: "bar", x: d0.map(r => r.speed), y: d0.map(r => 100 * r.freq_obs), name: "station", marker: {color: b},
+     hovertemplate: "%{x} m/s: %{y:.1f} %<extra>station</extra>"}].concat(MODELS.map(m => {
+      const d = dist(m);
+      return {type: "bar", x: d.map(r => r.speed), y: d.map(r => 100 * r.freq_model), name: MLABEL[m],
+              marker: {color: css(MCOLOR[m])}, hovertemplate: "%{x} m/s: %{y:.1f} %<extra>" + MLABEL[m] + "</extra>"};
+    })), base({bargap: 0.2, bargroupgap: 0.06, xaxis: axis("wind speed [m/s]"), yaxis: axis("share of hours [%]")}), CFG);
+  const lines = (table, sample, x, y, unit) => MODELS.map(m => {
+    const rows = table.filter(r => r.code === current && r.sample === sample && r.model === m);
+    const c = css(MCOLOR[m]);
+    return {x: rows.map(r => r[x]), y: rows.map(r => r[y]), mode: "lines+markers", name: MLABEL[m],
+            line: {color: c, width: 2}, marker: {size: 7, color: c, line: {color: css("--surface-1"), width: 1.5}},
+            hovertemplate: "%{x}: %{y:+.2f} " + unit + "<extra>" + MLABEL[m] + "</extra>"};
+  });
+  Plotly.react("c-wcyc", lines(D.cycle, "wind", "hour_utc", "bias", "m/s"),
+    base({xaxis: axis("hour (UTC)", {dtick: 3}), yaxis: axis("reanalysis - station [m/s]")}), CFG);
+  Plotly.react("c-gcyc", lines(D.cycle, "ghi_hourly", "hour_utc", "bias", "W/m2"),
+    base({xaxis: axis("hour (UTC)", {dtick: 3}), yaxis: axis("reanalysis - station [W/m2]")}), CFG);
+  Plotly.react("c-wmon", lines(D.season, "wind", "month", "rel_bias_pct", "%"),
+    base({xaxis: axis("month", {dtick: 1}), yaxis: axis("reanalysis vs station [%]")}), CFG);
+  Plotly.react("c-gmon", lines(D.season, "ghi_daily", "month", "rel_bias_pct", "%"),
+    base({xaxis: axis("month", {dtick: 1}), yaxis: axis("reanalysis vs station [%]")}), CFG);
   const g = Math.max(...p.ghi_obs, ...p.ghi_model, 1);
   Plotly.react("c-ghi", [
     {type: "scattergl", mode: "markers", x: p.ghi_obs, y: p.ghi_model, text: p.ghi_day,
-     marker: {size: 5, color: o, opacity: 0.5}, hovertemplate: "%{text}<br>station %{x:.2f}<br>ERA5 %{y:.2f}<extra></extra>"},
+     marker: {size: 5, color: mc, opacity: 0.5}, hovertemplate: "%{text}<br>station %{x:.2f}<br>" + MLABEL[model] + " %{y:.2f}<extra></extra>"},
     {x: [0, g], y: [0, g], mode: "lines", line: {color: muted, dash: "dash", width: 1}, hoverinfo: "skip"}],
-    base({showlegend: false, xaxis: axis("station"), yaxis: axis("ERA5")}), CFG);
+    base({showlegend: false, xaxis: axis("station"), yaxis: axis(MLABEL[model])}), CFG);
   const names = {raw: "raw ERA5", linear: "linear regression", variance: "variance ratio", matrix: "matrix"};
-  const colors = {raw: css("--series-4"), linear: css("--series-3"), variance: b, matrix: o};
+  const colors = {raw: css("--series-4"), linear: css("--mcp-linear"), variance: css("--mcp-variance"), matrix: css("--mcp-matrix")};
   const mcp = D.mcp.filter(r => r.code === current);
-  Plotly.react("c-mcp", Object.keys(names).map(m => {
-      const rows = mcp.filter(r => r.method === m);
-      return {type: "bar", name: names[m], x: rows.map(r => r.test), y: rows.map(r => r.energy_error_pct),
-              marker: {color: colors[m]}, hovertemplate: "%{x}: %{y:+.1f} %<extra>" + names[m] + "</extra>"};
+  Plotly.react("c-mcp", Object.keys(names).map(k => {
+      const rows = mcp.filter(r => r.method === k);
+      return {type: "bar", name: names[k], x: rows.map(r => r.test), y: rows.map(r => r.energy_error_pct),
+              marker: {color: colors[k]}, hovertemplate: "%{x}: %{y:+.1f} %<extra>" + names[k] + "</extra>"};
     }), base({bargap: 0.2, xaxis: axis("held-out year", {type: "category"}), yaxis: axis("energy error [%]")}), CFG);
   const rows = [
     ["", "wind, hourly", "GHI, hourly", "GHI, daily"],
-    ["bias", fmt(s.bias_wind, 2, true) + " m/s", fmt(s.bias_ghi_hourly, 0, true) + " W/m2", fmt(s.bias_ghi_daily, 2, true) + " kWh/m2"],
-    ["bias [%]", fmt(s.rel_bias_pct_wind, 1, true), fmt(s.rel_bias_pct_ghi_hourly, 1, true), fmt(s.rel_bias_pct_ghi_daily, 1, true)],
-    ["RMSE", fmt(s.rmse_wind, 2) + " m/s", fmt(s.rmse_ghi_hourly, 0) + " W/m2", fmt(s.rmse_ghi_daily, 2) + " kWh/m2"],
-    ["R2", fmt(s.r2_wind, 2), fmt(s.r2_ghi_hourly, 2), fmt(s.r2_ghi_daily, 2)],
-    ["pairs", s.n_wind, s.n_ghi_hourly, s.n_ghi_daily],
-    ["energy", "wind " + fmt(s.wind_energy_error_pct, 1, true) + " %", "PV " + fmt(s.pv_error_pct, 1, true) + " %",
-     fmt(s.pv_obs_kwh_kwp, 0) + " vs " + fmt(s.pv_model_kwh_kwp, 0) + " kWh/kWp"]];
+    ["bias", fmt(ms.bias_wind, 2, true) + " m/s", fmt(ms.bias_ghi_hourly, 0, true) + " W/m2", fmt(ms.bias_ghi_daily, 2, true) + " kWh/m2"],
+    ["bias [%]", fmt(ms.rel_bias_pct_wind, 1, true), fmt(ms.rel_bias_pct_ghi_hourly, 1, true), fmt(ms.rel_bias_pct_ghi_daily, 1, true)],
+    ["RMSE", fmt(ms.rmse_wind, 2) + " m/s", fmt(ms.rmse_ghi_hourly, 0) + " W/m2", fmt(ms.rmse_ghi_daily, 2) + " kWh/m2"],
+    ["R2", fmt(ms.r2_wind, 2), fmt(ms.r2_ghi_hourly, 2), fmt(ms.r2_ghi_daily, 2)],
+    ["pairs", ms.n_wind, ms.n_ghi_hourly, ms.n_ghi_daily],
+    ["energy", "wind " + fmt(ms.wind_energy_error_pct, 1, true) + " %", "PV " + fmt(ms.pv_error_pct, 1, true) + " %",
+     fmt(ms.pv_obs_kwh_kwp, 0) + " vs " + fmt(ms.pv_model_kwh_kwp, 0) + " kWh/kWp"]];
   document.getElementById("st-table").innerHTML = rows.map((r, i) =>
     "<tr>" + r.map(c => i === 0 ? `<th>${c}</th>` : `<td>${c}</td>`).join("") + "</tr>").join("");
   document.querySelectorAll("#all tr[data-code]").forEach(tr => tr.classList.toggle("sel", +tr.dataset.code === current));
@@ -242,11 +260,12 @@ const COLS = [["name", "station", null], ["terrain", "terrain", null], ["elev_m"
   ["ghi_error_pct", "GHI bias [%]", 1], ["r2_ghi_daily", "GHI R2 daily", 2], ["pv_error_pct", "PV yield [%]", 1],
   ["pv_obs_kwh_kwp", "PV, station GHI [kWh/kWp]", 0]];
 let sortKey = "sea_km", sortDir = 1;
+const cell = (s, k) => k in s ? s[k] : val(s, k);
 function drawTable() {
-  const rows = [...D.stations].sort((a, b) => (a[sortKey] > b[sortKey] ? 1 : -1) * sortDir);
+  const rows = [...D.stations].sort((a, b) => (cell(a, sortKey) > cell(b, sortKey) ? 1 : -1) * sortDir);
   const head = "<tr>" + COLS.map(([k, l]) => `<th data-k="${k}">${l}${k === sortKey ? (sortDir > 0 ? " &#9650;" : " &#9660;") : ""}</th>`).join("") + "</tr>";
   const body = rows.map(s => `<tr data-code="${s.code}" class="${s.code === current ? "sel" : ""}">` + COLS.map(([k, , d]) =>
-    `<td>${d == null ? s[k] : fmt(s[k], d, k.includes("pct"))}</td>`).join("") + "</tr>").join("");
+    `<td>${d == null ? cell(s, k) : fmt(cell(s, k), d, k.includes("pct"))}</td>`).join("") + "</tr>").join("");
   const t = document.getElementById("all");
   t.innerHTML = head + body;
   t.querySelectorAll("th").forEach(th => th.onclick = () => {
@@ -255,15 +274,17 @@ function drawTable() {
 }
 
 function init() {
-  const metric = document.getElementById("metric"), station = document.getElementById("station");
-  metric.innerHTML = Object.entries(METRICS).map(([k, [l]]) => `<option value="${k}">${l}</option>`).join("");
-  station.innerHTML = [...D.stations].sort((a, b) => a.name.localeCompare(b.name, "pl"))
+  const sel = id => document.getElementById(id);
+  sel("model").innerHTML = MODELS.map(m => `<option value="${m}">${MLABEL[m]}</option>`).join("");
+  sel("metric").innerHTML = Object.entries(METRICS).map(([k, [l]]) => `<option value="${k}">${l}</option>`).join("");
+  sel("station").innerHTML = [...D.stations].sort((a, b) => a.name.localeCompare(b.name, "pl"))
     .map(s => `<option value="${s.code}">${s.name}</option>`).join("");
-  metric.onchange = drawMap;
-  station.onchange = () => { current = +station.value; drawStation(); };
+  sel("model").onchange = () => { model = sel("model").value; drawTable(); drawStation(); };
+  sel("metric").onchange = drawMap;
+  sel("station").onchange = () => { current = +sel("station").value; drawStation(); };
   current = D.summary.default_station || current;
   tiles(); drawTable(); drawStation();
-  document.getElementById("map").on("plotly_click", ev => { current = ev.points[0].customdata; drawStation(); });
+  sel("map").on("plotly_click", ev => { current = ev.points[0].customdata; drawStation(); });
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawStation);
 }
 init();

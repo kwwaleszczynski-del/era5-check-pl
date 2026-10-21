@@ -56,17 +56,19 @@ def fetch(data_dir: Path, max_weight: float = 2000.0, refresh: bool = False, wit
 
 def timing_check(code: int, row: pd.Series, solar: pd.DataFrame, data_dir: Path,
                  shifts=range(-60, 61, 15)) -> pd.DataFrame:
-    """Correlation of measured and ERA5 hourly GHI when the solar-time records are shifted by ``shifts`` minutes.
+    """Correlation of measured and reanalysis hourly GHI when the solar-time records are shifted by ``shifts``.
 
     A wrong hour convention would put the best match at +-60 min; the analysis itself always uses shift 0.
     """
-    ref = solar["era5"]
     records = dataset.radiation_records(code, row["lat"], row["lon"], data_dir)
     rows = []
     for s in shifts:
         obs = dataset.load_radiation(code, row["lat"], row["lon"], data_dir, shift_min=s, records=records)
-        ok = obs.notna() & ref.notna() & ((obs > 0) | (ref > 0))
-        rows.append({"code": code, "shift_min": s, "r": float(np.corrcoef(obs[ok], ref[ok])[0, 1])})
+        for model in MODELS:
+            ref = solar[model]
+            ok = obs.notna() & ref.notna() & ((obs > 0) | (ref > 0))
+            rows.append({"code": code, "model": model, "shift_min": s,
+                         "r": float(np.corrcoef(obs[ok], ref[ok])[0, 1])})
     return pd.DataFrame(rows)
 
 
@@ -142,23 +144,52 @@ def mcp_summary(mcp_t: pd.DataFrame) -> pd.DataFrame:
         rmse_ms=("rmse_ms", "mean"), share_within_5pct=("within_5pct", "mean"), folds=("code", "size"))
 
 
-def headline(tables: dict[str, pd.DataFrame], mcp_s: pd.DataFrame) -> dict:
-    e = tables["energy"][tables["energy"]["model"] == "era5"]
-    full = e[e["wind_night_coverage"] >= 0.5]
-    flat = full[full["terrain"].isin(["coast", "lowland"])]
+def model_summary(tables: dict[str, pd.DataFrame], model: str) -> dict:
+    """Station-level medians and ranges of one reanalysis (wind: stations with night reports)."""
+    e = tables["energy"][tables["energy"]["model"] == model]
+    sc = tables["scores"][tables["scores"]["model"] == model].set_index(["code", "sample"])
+    low = e[(e["terrain"] != "summit")]
+    flat = e[(e["wind_night_coverage"] >= 0.5) & e["terrain"].isin(["coast", "lowland"])]
     summit = e[e["terrain"] == "summit"]
+    r2 = lambda sample, codes: float(sc.xs(sample, level="sample").loc[codes, "r2"].median())
+    return {
+        "wind_bias_median_pct": float(low["wind_speed_error_pct"].median()),
+        "wind_abs_bias_median_pct": float(low["wind_speed_error_pct"].abs().median()),
+        "wind_bias_flat_min_pct": float(flat["wind_speed_error_pct"].min()),
+        "wind_bias_flat_max_pct": float(flat["wind_speed_error_pct"].max()),
+        "wind_bias_summits_pct": [float(v) for v in summit["wind_speed_error_pct"]],
+        "wind_r2_median": r2("wind", low["code"].tolist()),
+        "wind_energy_abs_error_median_pct": float(low["wind_energy_error_pct"].abs().median()),
+        "ghi_bias_median_pct": float(e["ghi_error_pct"].median()),
+        "ghi_abs_bias_median_pct": float(e["ghi_error_pct"].abs().median()),
+        "ghi_bias_min_pct": float(e["ghi_error_pct"].min()), "ghi_bias_max_pct": float(e["ghi_error_pct"].max()),
+        "ghi_hourly_r2_median": r2("ghi_hourly", e["code"].tolist()),
+        "ghi_daily_r2_median": r2("ghi_daily", e["code"].tolist()),
+        "pv_abs_error_median_pct": float(e["pv_error_pct"].abs().median()),
+    }
+
+
+def headline(tables: dict[str, pd.DataFrame], mcp_s: pd.DataFrame) -> dict:
+    models = [m for m in MODELS if (tables["energy"]["model"] == m).any()]
+    per_model = {m: model_summary(tables, m) for m in models}
+    e5 = per_model["era5"]
     loyo = mcp_s.loc["leave_one_year_out"].drop(index="raw")
     best = loyo["abs_energy_error_pct"].idxmin()
     label = {"linear": "Linear regression", "variance": "Variance ratio", "matrix": "Matrix method"}
     pct = lambda v: f"{v:+.0f} %"
-    return {
-        "wind_bias_range": f"{pct(flat['wind_speed_error_pct'].min())} to {pct(flat['wind_speed_error_pct'].max())}",
-        "summit_bias": " / ".join(pct(v) for v in summit["wind_speed_error_pct"]),
-        "ghi_bias_median": f"{e['ghi_error_pct'].median():+.1f} %",
-        "ghi_bias_range": f"{e['ghi_error_pct'].min():+.1f} to {e['ghi_error_pct'].max():+.1f} %",
+    out = {
+        "wind_bias_range": f"{pct(e5['wind_bias_flat_min_pct'])} to {pct(e5['wind_bias_flat_max_pct'])}",
+        "summit_bias": " / ".join(pct(v) for v in e5["wind_bias_summits_pct"]),
+        "ghi_bias_median": f"{e5['ghi_bias_median_pct']:+.1f} %",
+        "ghi_bias_range": f"{e5['ghi_bias_min_pct']:+.1f} to {e5['ghi_bias_max_pct']:+.1f} %",
         "best_mcp": label[best], "best_mcp_error": f"{loyo.loc[best, 'abs_energy_error_pct']:.1f} %",
-        "default_station": 250,
+        "default_station": 250, "models": models, "per_model": per_model,
     }
+    if "cerra" in per_model:
+        c = per_model["cerra"]
+        out["cerra_tile"] = f"{c['wind_abs_bias_median_pct']:.0f} % / {c['ghi_abs_bias_median_pct']:.1f} %"
+        out["cerra_tile_ref"] = f"{e5['wind_abs_bias_median_pct']:.0f} % / {e5['ghi_abs_bias_median_pct']:.1f} %"
+    return out
 
 
 def report(data_dir: Path, results_dir: Path, docs_dir: Path) -> dict:
@@ -176,6 +207,8 @@ def report(data_dir: Path, results_dir: Path, docs_dir: Path) -> dict:
     plots.energy_impact(e, img / "energy_impact.png")
     plots.mcp_summary(mcp_s, tables["mcp"]["code"].nunique(), img / "mcp.png")
     plots.example_station(payloads["250"], "Toruń", img / "example_torun.png")
+    if len(summary["models"]) > 1:
+        plots.model_comparison(tables, summary["models"], img / "era5_vs_cerra.png")
     if "kelmarsh" in tables:
         plots.kelmarsh_figure(tables["kelmarsh_distribution"], tables["kelmarsh"], img / "kelmarsh.png")
     dashboard.write_dashboard(tables, payloads, summary, docs_dir / "index.html")
