@@ -1,0 +1,9 @@
+{
+  "wind_bias_range": "-14 % to +54 %",
+  "summit_bias": "-74 % / -68 %",
+  "ghi_bias_median": "+2.2 %",
+  "ghi_bias_range": "-4.4 to +10.2 %",
+  "best_mcp": "Matrix method",
+  "best_mcp_error": "5.4 %",
+  "default_station": 250
+}

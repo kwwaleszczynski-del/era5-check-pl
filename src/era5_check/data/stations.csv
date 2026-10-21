@@ -1,0 +1,25 @@
+# IMGW-PIB stations with both hourly synoptic observations and hourly global radiation (actinometric network).
+# Coordinates and elevation: IMGW-PIB "Promieniowanie sloneczne_zakres danych.xlsx" (dane_aktynometryczne), the
+# radiation site; the synoptic site is the same within 1 km (IMGW mapa_zawartosci_synop.pdf), except Kolobrzeg,
+# whose synoptic station moved 13 km west to Dzwirzyno in April 2018 (after the study period).
+# terrain: coast (< 5 km from the Baltic), lowland, upland (basins and foothills, 300-900 m), summit (> 1500 m).
+code,name,akt_folder,lat,lon,elev_m,terrain
+120,Łeba,Łeba,54.75361,17.53472,2,coast
+100,Kołobrzeg,Kołobrzeg,54.18250,15.57972,3,coast
+230,Piła,Piła,53.13056,16.74722,72,lowland
+300,Gorzów Wielkopolski,Gorzów Wielkopolski,52.74111,15.27722,71,lowland
+250,Toruń,Toruń,53.04194,18.59556,69,lowland
+280,Mikołajki,Mikołajki,53.78917,21.58972,127,lowland
+345,Koło,Koło,52.19972,18.66028,115,lowland
+465,Łódź,Łódź,51.71833,19.38722,175,lowland
+415,Legnica,Legnica,51.19250,16.20778,122,lowland
+455,Wieluń,Wieluń,51.21028,18.55667,199,lowland
+469,Sulejów,Sulejów,51.35333,19.86639,188,lowland
+497,Włodawa,Włodawa,51.55333,23.52944,177,lowland
+500,Jelenia Góra,Jelenia Góra,50.90028,15.78889,342,upland
+520,Kłodzko,Kłodzko,50.43694,16.61417,356,upland
+600,Bielsko-Biała,Bielsko-Biała,49.80722,19.00028,398,upland
+690,Lesko,Lesko,49.46639,22.34167,420,upland
+625,Zakopane,Zakopane,49.29389,19.96028,855,upland
+510,Śnieżka,Śnieżka,50.73611,15.73972,1603,summit
+650,Kasprowy Wierch,Kasprowy Wierch,49.23250,19.98194,1991,summit

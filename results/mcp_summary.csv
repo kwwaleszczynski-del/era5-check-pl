@@ -1,0 +1,9 @@
+scheme,method,abs_energy_error_pct,energy_error_pct,abs_speed_error_pct,wasserstein_ms,rmse_ms,share_within_5pct,folds
+leave_one_year_out,linear,7.356,1.709,3.672,0.4895,1.493,0.4035,114
+leave_one_year_out,matrix,5.449,0.3395,3.39,0.1424,1.397,0.5351,114
+leave_one_year_out,raw,40.82,17.18,27.31,1.256,2.089,0.114,114
+leave_one_year_out,variance,7.222,2.917,3.992,0.2153,1.615,0.4561,114
+one_year_campaign,linear,7.385,1.454,3.621,0.4887,1.503,0.4561,114
+one_year_campaign,matrix,5.44,0.1949,3.447,0.1449,1.434,0.5526,114
+one_year_campaign,raw,40.21,16.78,26.94,1.249,2.092,0.114,114
+one_year_campaign,variance,6.829,2.645,3.935,0.2038,1.624,0.4912,114

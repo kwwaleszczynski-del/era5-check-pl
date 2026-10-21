@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "era5-check-pl"
+version = "0.1.0"
+description = "How well ERA5 reproduces wind and solar radiation in Poland, checked against IMGW-PIB station measurements, with the energy impact and long-term (MCP) correction."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyarrow>=14",
+    "scipy>=1.11",
+    "pvlib>=0.11",
+    "requests>=2.31",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+era5-check = "era5_check.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+era5_check = ["data/*.csv", "data/*.json", "data/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

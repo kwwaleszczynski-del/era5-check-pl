@@ -1,0 +1,3 @@
+series,n,obs_mean,model_mean,bias,rel_bias_pct,rmse,mae,r2,std_ratio,cf_obs,cf_model,energy_error_pct
+ERA5 interpolated to 78.5 m,51238,6.275,6.899,0.6244,9.952,1.284,1.005,0.8691,1.143,0.3109,0.384,23.52
+ERA5 100 m as is,51238,6.275,7.273,0.9984,15.91,1.568,1.253,0.8662,1.196,0.3109,0.4245,36.55

@@ -1,0 +1,59 @@
+# Senvion MM92 (2050 kW, rotor 92.5 m) empirical power curve, air density 1.225 kg/m3, 0.5 m/s bins.
+# Mean of the six Kelmarsh turbines' binned curves in 2017 (IEC 61400-12-1 method of bins on nacelle
+# anemometer wind speed), computed with https://github.com/kwwaleszczynski-del/wind-power-curve-kelmarsh
+# from: Plumley C., Takeuchi R., Kelmarsh wind farm data, Cubico Sustainable Investments,
+# doi:10.5281/zenodo.16807551, CC BY 4.0.
+# Bins above 16.5 m/s (too few samples) are set to rated power up to the 25 m/s cut-out.
+# Negative values (self-consumption below cut-in) are set to 0.
+ws_ms,power_kw
+0.0,0.0
+0.5,0.0
+1.0,0.0
+1.5,0.0
+2.0,0.0
+2.5,0.0
+3.0,20.3
+3.5,59.3
+4.0,106.9
+4.5,163.6
+5.0,233.2
+5.5,320.0
+6.0,423.5
+6.5,548.2
+7.0,692.1
+7.5,855.4
+8.0,1033.0
+8.5,1225.3
+9.0,1421.0
+9.5,1610.4
+10.0,1771.6
+10.5,1887.1
+11.0,1963.6
+11.5,2006.5
+12.0,2027.7
+12.5,2038.8
+13.0,2044.1
+13.5,2048.1
+14.0,2047.2
+14.5,2047.8
+15.0,2045.6
+15.5,2044.7
+16.0,2049.6
+16.5,2050.3
+17.0,2050.0
+17.5,2050.0
+18.0,2050.0
+18.5,2050.0
+19.0,2050.0
+19.5,2050.0
+20.0,2050.0
+20.5,2050.0
+21.0,2050.0
+21.5,2050.0
+22.0,2050.0
+22.5,2050.0
+23.0,2050.0
+23.5,2050.0
+24.0,2050.0
+24.5,2050.0
+25.0,2050.0
