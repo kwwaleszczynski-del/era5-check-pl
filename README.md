@@ -192,7 +192,7 @@ zero with the sun more than 10° up (recorder outages), are dropped.
 ```math
 \mathrm{bias} = \frac{1}{n}\sum_{i=1}^{n}(m_i - o_i), \qquad
 \mathrm{RMSE} = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(m_i - o_i)^2}, \qquad
-R^2 = \operatorname{corr}(o, m)^2
+R^2 = \mathrm{corr}(o, m)^2
 ```
 
 Relative bias is the bias divided by the measured mean. Hourly GHI uses hours with the sun above 5°; daily GHI
