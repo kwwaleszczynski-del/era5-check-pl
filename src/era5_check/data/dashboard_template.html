@@ -168,7 +168,10 @@ function drawMap() {
     type: "scattergeo", lon: D.stations.map(s => s.lon), lat: D.stations.map(s => s.lat),
     text: D.stations.map(s => `${s.name} (${s.terrain}, ${s.elev_m} m)<br>${MLABEL[model]} ${label}: ${fmt(val(s, key), diverging ? 1 : 2, diverging)}`),
     hoverinfo: "text", customdata: D.stations.map(s => s.code), mode: "markers+text",
-    textposition: "top center", textfont: {size: 10, color: css("--text-secondary")},
+    // label below the marker when another station sits just above it (Zakopane / Kasprowy Wierch) or at the top edge
+    textposition: D.stations.map(s => (s.lat > 54.6 || D.stations.some(o => o !== s && o.lat > s.lat &&
+      o.lat - s.lat < 0.2 && Math.abs(o.lon - s.lon) < 0.3)) ? "bottom center" : "top center"),
+    textfont: {size: 10, color: css("--text-secondary")},
     texttemplate: D.stations.map(s => fmt(val(s, key), diverging ? 0 : 2, diverging)),
     marker: {size: D.stations.map(s => s.code === current ? 18 : 13), color: D.stations.map(s => val(s, key)),
              colorscale: scale, cmin: diverging ? -lim : 0, cmax: diverging ? lim : 1,

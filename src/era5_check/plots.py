@@ -122,7 +122,8 @@ def daily_cycle(cycle: pd.DataFrame, season: pd.DataFrame, energy_t: pd.DataFram
     ax.text(0.98, 0.62, f"summits (not drawn):\n{summit.min():.1f} to {summit.max():.1f} m/s", transform=ax.transAxes,
             fontsize=8, color=INK2, ha="right")
     ax.set_xlabel("hour (UTC)")
-    ax.legend(fontsize=8, ncol=2)
+    ax.set_ylim(top=ax.get_ylim()[1] + 0.12)  # room for a one-row legend above the coast line
+    ax.legend(fontsize=8, ncol=3, loc="upper center")
     g = cycle[(cycle["sample"] == "ghi_hourly") & (cycle["model"] == "era5")]
     piv = g.pivot(index="hour_utc", columns="code", values="bias")
     piv = piv[piv.notna().sum(axis=1) >= 10]
